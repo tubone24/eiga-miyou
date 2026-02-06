@@ -1,6 +1,7 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { getUserById } from "@/lib/db/users";
+import { refreshGoogleToken } from "@/lib/auth/refresh-google-token";
 
 const eventSchema = z.object({
   summary: z.string(),
@@ -12,7 +13,38 @@ const eventSchema = z.object({
 const busySlotSchema = z.object({
   start: z.string(),
   end: z.string(),
+  summary: z.string().optional(),
 });
+
+type CalendarItem = {
+  summary?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+};
+
+function parseCalendarItems(items: CalendarItem[]) {
+  const events = items.map((item) => {
+    const allDay = !item.start?.dateTime;
+    const start = item.start?.dateTime ?? item.start?.date ?? "";
+    const end = item.end?.dateTime ?? item.end?.date ?? "";
+    return {
+      summary: item.summary ?? "(no title)",
+      start,
+      end,
+      allDay,
+    };
+  });
+
+  const busySlots = items
+    .filter((item) => item.start?.dateTime && item.end?.dateTime)
+    .map((item) => ({
+      start: item.start!.dateTime!,
+      end: item.end!.dateTime!,
+      summary: item.summary,
+    }));
+
+  return { events, busySlots };
+}
 
 export const calendarCheck = createTool({
   id: "calendar-check",
@@ -35,7 +67,6 @@ export const calendarCheck = createTool({
   }),
   execute: async ({ userId, dateMin, dateMax }) => {
 
-    // Look up user and their Google tokens
     const user = getUserById(userId);
     if (!user) {
       return {
@@ -45,7 +76,7 @@ export const calendarCheck = createTool({
       };
     }
 
-    const accessToken = user.googleAccessToken;
+    let accessToken = user.googleAccessToken;
     if (!accessToken) {
       return {
         events: [],
@@ -55,20 +86,39 @@ export const calendarCheck = createTool({
       };
     }
 
-    try {
-      const calendarUrl = new URL(
+    const buildUrl = () => {
+      const url = new URL(
         "https://www.googleapis.com/calendar/v3/calendars/primary/events"
       );
-      calendarUrl.searchParams.set("timeMin", dateMin);
-      calendarUrl.searchParams.set("timeMax", dateMax);
-      calendarUrl.searchParams.set("singleEvents", "true");
-      calendarUrl.searchParams.set("orderBy", "startTime");
+      url.searchParams.set("timeMin", dateMin);
+      url.searchParams.set("timeMax", dateMax);
+      url.searchParams.set("singleEvents", "true");
+      url.searchParams.set("orderBy", "startTime");
+      return url.toString();
+    };
 
-      const res = await fetch(calendarUrl.toString(), {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+    const doFetch = (token: string) =>
+      fetch(buildUrl(), {
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+    try {
+      let res = await doFetch(accessToken);
+
+      // 401: トークン自動更新を試みる
+      if (res.status === 401 && user.googleRefreshToken) {
+        const refreshResult = await refreshGoogleToken(userId, user.googleRefreshToken);
+        if ("error" in refreshResult) {
+          return {
+            events: [],
+            busySlots: [],
+            needsReauth: true,
+            error: `Token refresh failed: ${refreshResult.error}`,
+          };
+        }
+        accessToken = refreshResult.accessToken;
+        res = await doFetch(accessToken);
+      }
 
       if (res.status === 401) {
         return {
@@ -87,41 +137,9 @@ export const calendarCheck = createTool({
         };
       }
 
-      const data = (await res.json()) as {
-        items?: Array<{
-          summary?: string;
-          start?: { dateTime?: string; date?: string };
-          end?: { dateTime?: string; date?: string };
-        }>;
-      };
-
+      const data = (await res.json()) as { items?: CalendarItem[] };
       const items = data.items ?? [];
-
-      const events = items.map((item) => {
-        const allDay = !item.start?.dateTime;
-        const start = item.start?.dateTime ?? item.start?.date ?? "";
-        const end = item.end?.dateTime ?? item.end?.date ?? "";
-
-        return {
-          summary: item.summary ?? "(no title)",
-          start,
-          end,
-          allDay,
-        };
-      });
-
-      // Compute busy slots from non-all-day events
-      const busySlots = items
-        .filter((item) => item.start?.dateTime && item.end?.dateTime)
-        .map((item) => ({
-          start: item.start!.dateTime!,
-          end: item.end!.dateTime!,
-        }));
-
-      return {
-        events,
-        busySlots,
-      };
+      return parseCalendarItems(items);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {

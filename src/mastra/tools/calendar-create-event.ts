@@ -1,6 +1,7 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { getUserById } from "@/lib/db/users";
+import { refreshGoogleToken } from "@/lib/auth/refresh-google-token";
 
 export const calendarCreateEvent = createTool({
   id: "calendar-create-event",
@@ -27,7 +28,6 @@ export const calendarCreateEvent = createTool({
   }),
   execute: async ({ userId, summary, description, startTime, endTime, location }) => {
 
-    // Look up user and their Google tokens
     const user = getUserById(userId);
     if (!user) {
       return {
@@ -36,7 +36,7 @@ export const calendarCreateEvent = createTool({
       };
     }
 
-    const accessToken = user.googleAccessToken;
+    let accessToken = user.googleAccessToken;
     if (!accessToken) {
       return {
         status: "error",
@@ -46,38 +46,55 @@ export const calendarCreateEvent = createTool({
       };
     }
 
-    try {
-      const calendarUrl =
-        "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+    const calendarUrl =
+      "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 
-      const eventBody: Record<string, unknown> = {
-        summary,
-        start: {
-          dateTime: startTime,
-          timeZone: "Asia/Tokyo",
-        },
-        end: {
-          dateTime: endTime,
-          timeZone: "Asia/Tokyo",
-        },
-      };
+    const eventBody: Record<string, unknown> = {
+      summary,
+      start: {
+        dateTime: startTime,
+        timeZone: "Asia/Tokyo",
+      },
+      end: {
+        dateTime: endTime,
+        timeZone: "Asia/Tokyo",
+      },
+    };
 
-      if (description) {
-        eventBody.description = description;
-      }
+    if (description) {
+      eventBody.description = description;
+    }
 
-      if (location) {
-        eventBody.location = location;
-      }
+    if (location) {
+      eventBody.location = location;
+    }
 
-      const res = await fetch(calendarUrl, {
+    const doFetch = (token: string) =>
+      fetch(calendarUrl, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(eventBody),
       });
+
+    try {
+      let res = await doFetch(accessToken);
+
+      // 401: トークン自動更新を試みる
+      if (res.status === 401 && user.googleRefreshToken) {
+        const refreshResult = await refreshGoogleToken(userId, user.googleRefreshToken);
+        if ("error" in refreshResult) {
+          return {
+            status: "error",
+            needsReauth: true,
+            error: `Token refresh failed: ${refreshResult.error}`,
+          };
+        }
+        accessToken = refreshResult.accessToken;
+        res = await doFetch(accessToken);
+      }
 
       if (res.status === 401) {
         return {

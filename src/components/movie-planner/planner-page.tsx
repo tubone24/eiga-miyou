@@ -22,7 +22,8 @@ import {
 } from "./theater-map";
 import { ScheduleCards } from "./schedule-cards";
 import { RestaurantCards } from "./restaurant-cards";
-import type { TheaterSchedule, RestaurantData } from "@/types/schedule-card";
+import { CalendarConflicts } from "./calendar-conflicts";
+import type { TheaterSchedule, RestaurantData, CalendarData } from "@/types/schedule-card";
 
 const DAY_LABELS: Record<string, string> = {
   any: "直近",
@@ -58,6 +59,7 @@ export function PlannerPage() {
   const [theaters, setTheaters] = useState<Theater[] | null>(null);
   const [schedules, setSchedules] = useState<TheaterSchedule[] | null>(null);
   const [restaurantData, setRestaurantData] = useState<RestaurantData | null>(null);
+  const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const handleSubmit = async (request: PlanRequest) => {
@@ -72,6 +74,7 @@ export function PlannerPage() {
     setTheaters(null);
     setSchedules(null);
     setRestaurantData(null);
+    setCalendarData(null);
 
     const dayLabel = DAY_LABELS[request.preferredDay] ?? request.preferredDay;
 
@@ -144,6 +147,8 @@ export function PlannerPage() {
               setSchedules(parsed as TheaterSchedule[]);
             } else if (eventType === "restaurants") {
               setRestaurantData(parsed as RestaurantData);
+            } else if (eventType === "calendar-busy") {
+              setCalendarData(parsed as CalendarData);
             } else if (eventType === "status") {
               setStatusSteps((prev) => {
                 const updated = prev.map((s) => ({ ...s, done: true }));
@@ -200,10 +205,11 @@ export function PlannerPage() {
     setTheaters(null);
     setSchedules(null);
     setRestaurantData(null);
+    setCalendarData(null);
   };
 
   // 映画カードとマップは loading 中も結果後も表示
-  const showContextCards = movieInfo || (userLocation && theaters) || schedules || restaurantData;
+  const showContextCards = movieInfo || (userLocation && theaters) || schedules || restaurantData || calendarData;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -230,8 +236,14 @@ export function PlannerPage() {
             {userLocation && theaters && theaters.length > 0 && (
               <TheaterMap userLocation={userLocation} theaters={theaters} />
             )}
+            {calendarData && (
+              <CalendarConflicts data={calendarData} />
+            )}
             {schedules && schedules.length > 0 && (
-              <ScheduleCards schedules={schedules} />
+              <ScheduleCards
+                schedules={schedules}
+                calendarBusySlots={calendarData?.busySlots}
+              />
             )}
             {restaurantData && (
               <RestaurantCards data={restaurantData} />

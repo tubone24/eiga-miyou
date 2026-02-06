@@ -54,9 +54,13 @@ export const orchestratorAgent = new Agent({
 1. userProfile でユーザー住所を取得
 2. searchTheaters でユーザー住所近くの映画館を検索
 3. searchMovieSchedules で映画情報を検索（theatersに検索結果の映画館を渡す。上映スケジュールも自動で取得される）
-4. getDirections で各映画館への移動時間を計算
-5. 条件に合うプラン候補を整理（取得できたスケジュールデータを活用）
-6. 食事の提案を求められた場合は searchRestaurants で周辺レストランを検索
+4. calendarCheck で指定日の空き時間を確認
+   - dateMin/dateMax は上映日の 00:00〜23:59 (JST)
+   - busySlotsと上映時間(開始〜終了)が重複する回は「予定あり」として提案から除外
+   - needsReauth: true の場合は「カレンダー連携の再認証が必要」と案内
+5. getDirections で各映画館への移動時間を計算
+6. 条件に合うプラン候補を整理（カレンダーの空き時間を考慮し、バッティングする上映回は除外）
+7. 食事の提案を求められた場合は searchRestaurants で周辺レストランを検索
 
 **重要**: searchMovieSchedules はスケジュールも自動取得するため、browserAction での別途スクレイピングは不要です。スケジュール取得に失敗した映画館がある場合はnoteに記載されます。
 

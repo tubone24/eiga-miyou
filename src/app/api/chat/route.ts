@@ -143,6 +143,16 @@ export async function POST(request: NextRequest) {
                   encoder.encode(`event: restaurants\ndata: ${JSON.stringify({ restaurants: resultObj.restaurants, mealType: resultObj.mealType })}\n\n`),
                 );
               }
+              // カレンダー予定をクライアントに送信
+              if (toolName === "calendarCheck") {
+                controller.enqueue(
+                  encoder.encode(`event: calendar-busy\ndata: ${JSON.stringify({
+                    busySlots: resultObj.busySlots,
+                    events: resultObj.events,
+                    needsReauth: resultObj.needsReauth,
+                  })}\n\n`),
+                );
+              }
               // tool-result のエラーをクライアントに通知
               if (resultObj.error) {
                 const errMsg = `${toolName}: ${String(resultObj.error)}`;
