@@ -131,6 +131,18 @@ export async function POST(request: NextRequest) {
                   encoder.encode(`event: theaters\ndata: ${JSON.stringify(resultObj.theaters)}\n\n`),
                 );
               }
+              // 上映スケジュールをクライアントに送信
+              if (toolName === "searchMovieSchedules" && resultObj.schedules) {
+                controller.enqueue(
+                  encoder.encode(`event: schedules\ndata: ${JSON.stringify(resultObj.schedules)}\n\n`),
+                );
+              }
+              // レストラン情報をクライアントに送信
+              if (toolName === "searchRestaurants" && resultObj.restaurants) {
+                controller.enqueue(
+                  encoder.encode(`event: restaurants\ndata: ${JSON.stringify({ restaurants: resultObj.restaurants, mealType: resultObj.mealType })}\n\n`),
+                );
+              }
               // tool-result のエラーをクライアントに通知
               if (resultObj.error) {
                 const errMsg = `${toolName}: ${String(resultObj.error)}`;

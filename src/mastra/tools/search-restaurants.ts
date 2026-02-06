@@ -10,6 +10,7 @@ const restaurantSchema = z.object({
   priceLevel: z.string().nullable(),
   types: z.array(z.string()),
   placeId: z.string(),
+  photoName: z.string().nullable(),
 });
 
 export const searchRestaurants = createTool({
@@ -49,7 +50,7 @@ export const searchRestaurants = createTool({
           "Content-Type": "application/json",
           "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
           "X-Goog-FieldMask":
-            "places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.id",
+            "places.displayName,places.formattedAddress,places.rating,places.priceLevel,places.types,places.id,places.photos",
         },
         body: JSON.stringify({
           includedTypes: ["restaurant"],
@@ -80,6 +81,7 @@ export const searchRestaurants = createTool({
         priceLevel?: string;
         types?: string[];
         id?: string;
+        photos?: Array<{ name?: string }>;
       }>;
     };
 
@@ -92,6 +94,7 @@ export const searchRestaurants = createTool({
       priceLevel: place.priceLevel ?? null,
       types: place.types ?? [],
       placeId: place.id ?? "",
+      photoName: place.photos?.[0]?.name ?? null,
     }));
 
     return {

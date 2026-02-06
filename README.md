@@ -1,6 +1,8 @@
-# eiga-miyou
+# eiga-miyou (映画見よう！)
 
 映画鑑賞プランナーAIエージェント。観たい映画を伝えるだけで、近くの映画館検索・上映スケジュール取得・Googleカレンダー連携・レストラン提案・予約自動化までを一気通貫で行います。
+
+
 
 ## 技術スタック
 
@@ -154,8 +156,6 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxx
 
 Google Maps の Places API と Directions API に使うAPIキーです。OAuth不要で、このキーだけで動きます。
 
-**取得手順（所要時間: 約10分）**
-
 #### Step 1: API の有効化
 
 上で作った同じ Google Cloud プロジェクトで作業します。
@@ -190,8 +190,6 @@ Google Maps の Places API と Directions API に使うAPIキーです。OAuth�
 ### TMDB_API_KEY
 
 TMDb (The Movie Database) の映画情報検索に使うAPIキーです。
-
-**取得手順（所要時間: 約5分）**
 
 1. [TMDb](https://www.themoviedb.org/) にアクセス
 2. 右上の **「参加する」** からアカウントを作成（無料）
@@ -248,8 +246,6 @@ DATABASE_PATH=./data/eiga-miyou.db
 | 3 | Google Maps API Key + Places/Directions 有効化 | 10分 |
 | 4 | TMDb API Key | 5分 |
 | 5 | Anthropic API Key | 5分 |
-
-合計: **約45分〜1時間**
 
 ---
 

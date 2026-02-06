@@ -20,6 +20,9 @@ import {
   type UserLocation,
   type Theater,
 } from "./theater-map";
+import { ScheduleCards } from "./schedule-cards";
+import { RestaurantCards } from "./restaurant-cards";
+import type { TheaterSchedule, RestaurantData } from "@/types/schedule-card";
 
 const DAY_LABELS: Record<string, string> = {
   any: "直近",
@@ -53,6 +56,8 @@ export function PlannerPage() {
   const [movieInfo, setMovieInfo] = useState<MovieInfo | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [theaters, setTheaters] = useState<Theater[] | null>(null);
+  const [schedules, setSchedules] = useState<TheaterSchedule[] | null>(null);
+  const [restaurantData, setRestaurantData] = useState<RestaurantData | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const handleSubmit = async (request: PlanRequest) => {
@@ -65,6 +70,8 @@ export function PlannerPage() {
     setMovieInfo(null);
     setUserLocation(null);
     setTheaters(null);
+    setSchedules(null);
+    setRestaurantData(null);
 
     const dayLabel = DAY_LABELS[request.preferredDay] ?? request.preferredDay;
 
@@ -133,6 +140,10 @@ export function PlannerPage() {
               setUserLocation(parsed as UserLocation);
             } else if (eventType === "theaters") {
               setTheaters(parsed as Theater[]);
+            } else if (eventType === "schedules") {
+              setSchedules(parsed as TheaterSchedule[]);
+            } else if (eventType === "restaurants") {
+              setRestaurantData(parsed as RestaurantData);
             } else if (eventType === "status") {
               setStatusSteps((prev) => {
                 const updated = prev.map((s) => ({ ...s, done: true }));
@@ -187,10 +198,12 @@ export function PlannerPage() {
     setMovieInfo(null);
     setUserLocation(null);
     setTheaters(null);
+    setSchedules(null);
+    setRestaurantData(null);
   };
 
   // 映画カードとマップは loading 中も結果後も表示
-  const showContextCards = movieInfo || (userLocation && theaters);
+  const showContextCards = movieInfo || (userLocation && theaters) || schedules || restaurantData;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -216,6 +229,12 @@ export function PlannerPage() {
             {movieInfo && <MovieCard movie={movieInfo} />}
             {userLocation && theaters && theaters.length > 0 && (
               <TheaterMap userLocation={userLocation} theaters={theaters} />
+            )}
+            {schedules && schedules.length > 0 && (
+              <ScheduleCards schedules={schedules} />
+            )}
+            {restaurantData && (
+              <RestaurantCards data={restaurantData} />
             )}
           </div>
         )}

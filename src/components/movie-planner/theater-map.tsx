@@ -1,6 +1,15 @@
 "use client";
 
-import { MapPin, Navigation } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  APIProvider,
+  Map,
+  AdvancedMarker,
+  InfoWindow,
+  useMap,
+  Pin,
+} from "@vis.gl/react-google-maps";
+import { MapPin, Navigation, Home } from "lucide-react";
 
 export interface UserLocation {
   label: string;
@@ -20,41 +29,113 @@ export interface Theater {
   chain: string;
 }
 
-function buildStaticMapUrl(
-  userLoc: UserLocation,
-  theaters: Theater[],
-): string | null {
-  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  if (!key) return null;
+const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID ?? "";
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
-  const userLat = userLoc.lat;
-  const userLng = userLoc.lng;
-  if (!userLat || !userLng) return null;
+function FitBounds({
+  userLocation,
+  theaters,
+}: {
+  userLocation: UserLocation;
+  theaters: Theater[];
+}) {
+  const map = useMap();
 
-  const params = new URLSearchParams({
-    size: "400x250",
-    scale: "2",
-    maptype: "roadmap",
-    language: "ja",
-    key,
-  });
+  useEffect(() => {
+    if (!map) return;
+    if (!userLocation.lat || !userLocation.lng) return;
 
-  // ユーザー位置マーカー (青)
-  params.append(
-    "markers",
-    `color:blue|label:H|${userLat},${userLng}`,
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend({ lat: userLocation.lat, lng: userLocation.lng });
+    theaters.forEach((t) => {
+      bounds.extend({ lat: t.lat, lng: t.lng });
+    });
+    map.fitBounds(bounds, { top: 40, bottom: 40, left: 40, right: 40 });
+  }, [map, userLocation, theaters]);
+
+  return null;
+}
+
+function TheaterMarker({
+  theater,
+  onClick,
+}: {
+  theater: Theater;
+  onClick: () => void;
+}) {
+  return (
+    <AdvancedMarker
+      position={{ lat: theater.lat, lng: theater.lng }}
+      onClick={onClick}
+      title={theater.name}
+    >
+      <Pin background="#ef4444" borderColor="#dc2626" glyphColor="#fff" />
+    </AdvancedMarker>
   );
+}
 
-  // 映画館マーカー (赤)
-  const theaterMarkers = theaters
-    .slice(0, 8)
-    .map((t) => `${t.lat},${t.lng}`)
-    .join("|");
-  if (theaterMarkers) {
-    params.append("markers", `color:red|size:small|${theaterMarkers}`);
-  }
+function InteractiveMap({
+  userLocation,
+  theaters,
+}: {
+  userLocation: UserLocation;
+  theaters: Theater[];
+}) {
+  const [selectedTheater, setSelectedTheater] = useState<Theater | null>(null);
 
-  return `https://maps.googleapis.com/maps/api/staticmap?${params.toString()}`;
+  const handleClose = useCallback(() => setSelectedTheater(null), []);
+
+  const defaultCenter = userLocation.lat && userLocation.lng
+    ? { lat: userLocation.lat, lng: userLocation.lng }
+    : { lat: 35.6762, lng: 139.6503 };
+
+  return (
+    <Map
+      defaultCenter={defaultCenter}
+      defaultZoom={13}
+      mapId={MAP_ID}
+      style={{ height: "250px", width: "100%" }}
+      gestureHandling="cooperative"
+      disableDefaultUI
+      zoomControl
+    >
+      <FitBounds userLocation={userLocation} theaters={theaters} />
+
+      {/* ユーザー位置マーカー（青） */}
+      {userLocation.lat && userLocation.lng && (
+        <AdvancedMarker
+          position={{ lat: userLocation.lat, lng: userLocation.lng }}
+          title="自宅"
+        >
+          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 border-2 border-white shadow-md">
+            <Home className="h-3.5 w-3.5 text-white" />
+          </div>
+        </AdvancedMarker>
+      )}
+
+      {/* 映画館マーカー（赤） */}
+      {theaters.slice(0, 8).map((t) => (
+        <TheaterMarker
+          key={t.placeId}
+          theater={t}
+          onClick={() => setSelectedTheater(t)}
+        />
+      ))}
+
+      {/* InfoWindow */}
+      {selectedTheater && (
+        <InfoWindow
+          position={{ lat: selectedTheater.lat, lng: selectedTheater.lng }}
+          onClose={handleClose}
+          headerContent={selectedTheater.name}
+        >
+          <p className="text-xs text-neutral-600 max-w-[200px]">
+            {selectedTheater.address}
+          </p>
+        </InfoWindow>
+      )}
+    </Map>
+  );
 }
 
 export function TheaterMap({
@@ -64,20 +145,18 @@ export function TheaterMap({
   userLocation: UserLocation;
   theaters: Theater[];
 }) {
-  const mapUrl = buildStaticMapUrl(userLocation, theaters);
   const addressText = `${userLocation.prefecture}${userLocation.city}${userLocation.street}`;
 
   return (
     <div className="rounded-xl bg-white border border-neutral-200/60 shadow-sm overflow-hidden animate-fade-in-up">
-      {/* マップ画像 */}
-      {mapUrl && (
-        <img
-          src={mapUrl}
-          alt="映画館マップ"
-          className="w-full h-auto"
-          width={400}
-          height={250}
-        />
+      {/* インタラクティブマップ */}
+      {API_KEY && (
+        <APIProvider apiKey={API_KEY}>
+          <InteractiveMap
+            userLocation={userLocation}
+            theaters={theaters}
+          />
+        </APIProvider>
       )}
 
       <div className="p-4 space-y-3">
